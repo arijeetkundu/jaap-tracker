@@ -35,12 +35,13 @@ async function seedBaseline(count) {
 }
 // Splash Screen
 window.onload = () => {
-  setTimeout(() => {
+  setTimeout(async () => {
     document.getElementById("splash").style.display = "none";
     document.getElementById("main").style.display = "block";
     loadToday();
-    updateReflection();
-    updateLedger();
+    await ensureDailyEntries();   // <-- NEW LINE
+    await updateReflection();
+    await updateLedger();
   }, 2000);
 };
 
@@ -122,13 +123,38 @@ async function updateReflection() {
   }
 }
 
+// Ensure blank entries exist for today and past 7 days
+async function ensureDailyEntries() {
+  const today = new Date();
+
+  for (let i = 0; i < 7; i++) {
+    let date = new Date(today);
+    date.setDate(today.getDate() - i);
+    let dateStr = date.toISOString().split("T")[0];
+    let year = date.getFullYear();
+
+    // Check if entry already exists
+    let existing = await db.ledger.get(dateStr);
+
+    if (!existing) {
+      // Create blank entry
+      await db.ledger.put({
+        date: dateStr,
+        year: year,
+        jaapCount: 0,   // default blank count
+        notes: ""       // default blank notes
+      });
+    }
+  }
+}
+
 // Ledger
 async function updateLedger() {
   try {
     const entries = await db.ledger.orderBy("date").reverse().toArray();
     const ledgerDiv = document.getElementById("ledger-content");
     ledgerDiv.innerHTML = "";
-
+	await ensureDailyEntries();
     const grouped = {};
     entries.forEach(e => {
       if (!grouped[e.year]) grouped[e.year] = [];
